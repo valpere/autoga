@@ -1,8 +1,12 @@
 .DEFAULT_GOAL := help
-.PHONY: build run health scrape docker-build docker-up docker-down tidy deploy-scenario help
+.PHONY: build run health scrape docker-build docker-up docker-down tidy deploy-scenario gcloud-deploy help
 
-BIN := bin/autoga
-PORT ?= 8080
+BIN           := bin/autoga
+PORT          ?= 8080
+GCLOUD_REGION ?= europe-central2
+
+-include .env
+export
 
 help:
 	@echo "Usage: make <target>"
@@ -21,11 +25,13 @@ help:
 	@echo "  docker-up          Start via docker compose (detached)"
 	@echo "  docker-down        Stop docker compose"
 	@echo ""
-	@echo "Make.com"
-	@echo "  deploy-scenario    Create scenario via Make.com API (requires .env)"
+	@echo "Deploy"
+	@echo "  deploy-scenario    Create Make.com scenario (requires .env)"
+	@echo "  gcloud-deploy      Deploy to Cloud Run (requires gcloud auth)"
 	@echo ""
 	@echo "Variables"
 	@echo "  PORT               HTTP port for run/health/scrape (default: $(PORT))"
+	@echo "  GCLOUD_REGION      Cloud Run region (default: $(GCLOUD_REGION))"
 
 build:
 	@mkdir -p bin
@@ -49,10 +55,24 @@ docker-build:
 	docker build -f docker/Dockerfile -t autoga .
 
 docker-up:
-	docker compose up --build -d
+	docker compose -f docker/docker-compose.yml up --build -d
 
 docker-down:
-	docker compose down
+	docker compose -f docker/docker-compose.yml down
 
 deploy-scenario:
 	go run ./cmd/makesetup
+
+gcloud-deploy:
+	gcloud builds submit --config cloudbuild.yaml .
+	gcloud run deploy autoga \
+		--image gcr.io/$$(gcloud config get-value project)/autoga \
+		--platform managed \
+		--region $(GCLOUD_REGION) \
+		--allow-unauthenticated \
+		--memory 256Mi \
+		--cpu 1 \
+		--min-instances 0 \
+		--max-instances 2 \
+		--set-env-vars "READ_TIMEOUT=5s,WRITE_TIMEOUT=60s,FETCH_TIMEOUT=15s,MAX_CONCURRENCY=5,MAX_URLS_PER_REQUEST=10" \
+		--update-secrets "API_KEY=autoga-api-key:latest"

@@ -51,10 +51,6 @@ func (c *Client) CreateScenario(teamID int, bp Blueprint, sched Scheduling, fold
 	return resp.Scenario, nil
 }
 
-// ActivateScenario calls POST /scenarios/{id}/start to enable the scenario.
-func (c *Client) ActivateScenario(id int) error {
-	return c.post(fmt.Sprintf("/scenarios/%d/start", id), nil, nil)
-}
 
 func (c *Client) post(path string, body, out any) error {
 	var reqBody io.Reader

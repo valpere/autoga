@@ -46,14 +46,16 @@ func (s *Scraper) Scrape(ctx context.Context, urls []string) []internal.ArticleR
 }
 
 func (s *Scraper) scrapeOne(ctx context.Context, url string) internal.ArticleResult {
+	clean := unwrapGoogleURL(url)
+
 	html, err := s.fetcher.Fetch(ctx, url)
 	if err != nil {
-		return internal.ArticleResult{URL: url, Error: err.Error()}
+		return internal.ArticleResult{URL: clean, Error: err.Error()}
 	}
 
-	result, err := s.extractor.Extract(url, html)
+	result, err := s.extractor.Extract(clean, html)
 	if err != nil {
-		return internal.ArticleResult{URL: url, Error: err.Error()}
+		return internal.ArticleResult{URL: clean, Error: err.Error()}
 	}
 
 	return result

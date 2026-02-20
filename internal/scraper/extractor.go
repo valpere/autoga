@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/go-shiori/go-readability"
 
@@ -17,6 +18,12 @@ type ReadabilityExtractor struct{}
 func NewReadabilityExtractor() *ReadabilityExtractor {
 	return &ReadabilityExtractor{}
 }
+
+// sanitize removes characters that break JSON string embedding in Make.com templates:
+// double-quotes become single-quotes, backslashes are dropped.
+var sanitizeReplacer = strings.NewReplacer(`"`, `'`, `\`, ``)
+
+func sanitize(s string) string { return sanitizeReplacer.Replace(s) }
 
 // Extract parses the HTML and returns an ArticleResult populated with readable content.
 func (e *ReadabilityExtractor) Extract(rawURL string, html []byte) (internal.ArticleResult, error) {
@@ -32,10 +39,10 @@ func (e *ReadabilityExtractor) Extract(rawURL string, html []byte) (internal.Art
 
 	return internal.ArticleResult{
 		URL:      rawURL,
-		Title:    article.Title,
-		Byline:   article.Byline,
-		Content:  article.TextContent,
-		Excerpt:  article.Excerpt,
-		SiteName: article.SiteName,
+		Title:    sanitize(article.Title),
+		Byline:   sanitize(article.Byline),
+		Content:  sanitize(strings.Join(strings.Fields(article.TextContent), " ")),
+		Excerpt:  sanitize(article.Excerpt),
+		SiteName: sanitize(article.SiteName),
 	}, nil
 }

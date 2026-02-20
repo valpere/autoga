@@ -24,8 +24,9 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# env and private data files
 .env
+.rss_feeds.csv
 
 # compiled binaries
 bin/
