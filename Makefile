@@ -64,7 +64,7 @@ deploy-scenario:
 	go run ./cmd/makesetup
 
 gcloud-deploy:
-	gcloud builds submit --config cloudbuild.yaml .
+	gcloud builds submit --config docker/cloudbuild.yaml .
 	gcloud run deploy autoga \
 		--image gcr.io/$$(gcloud config get-value project)/autoga \
 		--platform managed \

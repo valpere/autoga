@@ -1,0 +1,7 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, -f, docker/Dockerfile, -t, "gcr.io/$PROJECT_ID/autoga", .]
+  - name: gcr.io/cloud-builders/docker
+    args: [push, "gcr.io/$PROJECT_ID/autoga"]
+images:
+  - "gcr.io/$PROJECT_ID/autoga"
