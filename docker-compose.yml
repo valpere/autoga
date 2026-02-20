@@ -1,0 +1,16 @@
+services:
+  autoga:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      READ_TIMEOUT: "5s"
+      WRITE_TIMEOUT: "60s"
+      FETCH_TIMEOUT: "15s"
+      MAX_CONCURRENCY: "5"
+      MAX_URLS_PER_REQUEST: "10"
+      API_KEY: ""
+    restart: unless-stopped

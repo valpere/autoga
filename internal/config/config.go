@@ -9,6 +9,7 @@ import (
 // Config holds all runtime configuration derived from environment variables.
 type Config struct {
 	Port               string
+	APIKey             string
 	ReadTimeout        time.Duration
 	WriteTimeout       time.Duration
 	FetchTimeout       time.Duration
@@ -20,6 +21,7 @@ type Config struct {
 func Load() Config {
 	return Config{
 		Port:              getEnv("PORT", "8080"),
+		APIKey:            getEnv("API_KEY", ""),
 		ReadTimeout:       getDuration("READ_TIMEOUT", 5*time.Second),
 		WriteTimeout:      getDuration("WRITE_TIMEOUT", 60*time.Second),
 		FetchTimeout:      getDuration("FETCH_TIMEOUT", 15*time.Second),
