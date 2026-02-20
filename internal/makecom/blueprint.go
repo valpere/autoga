@@ -4,14 +4,16 @@ import "encoding/json"
 
 // ScenarioConfig holds all values needed to construct the scenario blueprint.
 type ScenarioConfig struct {
-	Name           string
-	RSSFeedURL     string
-	ScraperURL     string
-	ScraperAPIKey  string
-	LLMAPIUrl      string
-	LLMAPIKey      string
-	LLMModel       string
-	TelegramChatID string
+	Name                 string
+	Zone                 string
+	RSSFeedURL           string
+	ScraperURL           string
+	ScraperAPIKey        string
+	LLMAPIUrl            string
+	LLMAPIKey            string
+	LLMModel             string
+	TelegramChatID       string
+	TelegramConnectionID int
 }
 
 // BuildBlueprint constructs the Make.com scenario blueprint for the
@@ -31,16 +33,21 @@ func BuildBlueprint(cfg ScenarioConfig) Blueprint {
 			rssModule(cfg.RSSFeedURL),
 			scraperModule(cfg.ScraperURL, cfg.ScraperAPIKey),
 			llmModule(cfg.LLMAPIUrl, cfg.LLMAPIKey, cfg.LLMModel),
-			telegramModule(cfg.TelegramChatID),
+			telegramModule(cfg.TelegramChatID, cfg.TelegramConnectionID),
 		},
 		Metadata: BlueprintMetadata{
+			Instant: false,
 			Version: 1,
 			Scenario: ScenarioOptions{
-				RoundTrips: 1,
-				MaxErrors:  3,
-				AutoCommit: true,
-				Sequential: false,
+				RoundTrips:            1,
+				MaxErrors:             3,
+				AutoCommit:            true,
+				AutoCommitTriggerLast: true,
+				Sequential:            false,
 			},
+			Designer: DesignerMeta{Orphans: []any{}},
+			Zone:     cfg.Zone + ".make.com",
+			Notes:    []any{},
 		},
 	}
 }
@@ -48,11 +55,19 @@ func BuildBlueprint(cfg ScenarioConfig) Blueprint {
 func rssModule(feedURL string) Module {
 	return Module{
 		ID:      1,
-		Module:  "rss:watch",
-		Version: 3,
+		Module:  "rss:ActionReadArticles",
+		Version: 4,
+		Parameters: map[string]any{
+			"include": []any{},
+		},
 		Mapper: map[string]any{
-			"url":        feedURL,
-			"maxResults": 1,
+			"url":            feedURL,
+			"username":       "",
+			"password":       "",
+			"filterDateFrom": "",
+			"filterDateTo":   "",
+			"maxResults":     "10",
+			"gzip":           true,
 		},
 		Metadata: ModuleMetadata{Designer: Designer{X: 0, Y: 0}},
 	}
@@ -60,77 +75,164 @@ func rssModule(feedURL string) Module {
 
 func scraperModule(scraperURL, apiKey string) Module {
 	body := mustJSON(map[string]any{
-		"urls": []string{"{{1.link}}"},
+		"urls": []string{"{{1.url}}"},
 	})
 	return Module{
 		ID:      2,
-		Module:  "http:ActionSendData",
-		Version: 3,
+		Module:  "http:MakeRequest",
+		Version: 4,
+		Parameters: map[string]any{
+			"authenticationType": "noAuth",
+			"tlsType":            "",
+			"proxyKeychain":      "",
+		},
 		Mapper: map[string]any{
 			"url":    scraperURL + "/scrape",
-			"method": "POST",
+			"method": "post",
 			"headers": []map[string]string{
 				{"name": "Authorization", "value": "Bearer " + apiKey},
-				{"name": "Content-Type", "value": "application/json"},
 			},
-			"bodyType":      "raw",
-			"contentType":   "application/json",
-			"body":          body,
-			"parseResponse": true,
+			"contentType":              "custom",
+			"contentTypeValue":         "application/json",
+			"rawBodyContent":           body,
+			"parseResponse":            true,
+			"stopOnHttpError":          true,
+			"allowRedirects":           true,
+			"shareCookies":             false,
+			"requestCompressedContent": true,
+			"timeout":                  90,
 		},
-		Metadata: ModuleMetadata{Designer: Designer{X: 300, Y: 0}},
+		Metadata: ModuleMetadata{
+			Designer: Designer{X: 300, Y: 0},
+			Restore: map[string]any{
+				"parameters": map[string]any{
+					"authenticationType": map[string]any{"label": "No authentication"},
+					"tlsType":            map[string]any{"label": "Empty"},
+					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+				},
+				"expect": map[string]any{
+					"method":                   map[string]any{"label": "POST"},
+					"headers":                  map[string]any{"mode": "chose"},
+					"contentType":              map[string]any{"label": "Custom"},
+					"parseResponse":            map[string]any{"mode": "chose"},
+					"stopOnHttpError":          map[string]any{"mode": "chose"},
+					"allowRedirects":           map[string]any{"mode": "chose"},
+					"shareCookies":             map[string]any{"mode": "chose"},
+					"requestCompressedContent": map[string]any{"mode": "chose"},
+					"paginationType":           map[string]any{"label": "Empty"},
+				},
+			},
+		},
 	}
 }
 
 func llmModule(apiURL, apiKey, model string) Module {
-	// Make.com template variables are interpolated at runtime before the body
-	// is sent to the LLM API. Module 2 (scraper) returns results[1] (1-indexed).
+	// Module 2 (scraper) returns results[1] (1-indexed per Make.com convention).
+	// Article content is normalized (no newlines) by the scraper, so embedding
+	// it in a JSON string via rawBodyContent is safe.
 	const prompt = "Напиши короткий дайджест цієї статті українською мовою (3-5 речень)." +
 		"\n\nЗаголовок: {{2.data.results[1].title}}" +
 		"\n\nТекст: {{2.data.results[1].content}}"
 
 	body := mustJSON(map[string]any{
-		"model": model,
-		"messages": []map[string]string{
+		"model":  model,
+		"stream": false,
+		"messages": []map[string]any{
 			{"role": "user", "content": prompt},
 		},
 	})
+
 	return Module{
 		ID:      3,
-		Module:  "http:ActionSendData",
-		Version: 3,
+		Module:  "http:MakeRequest",
+		Version: 4,
+		Parameters: map[string]any{
+			"authenticationType": "noAuth",
+			"tlsType":            "",
+			"proxyKeychain":      "",
+		},
 		Mapper: map[string]any{
 			"url":    apiURL,
-			"method": "POST",
+			"method": "post",
 			"headers": []map[string]string{
 				{"name": "Authorization", "value": "Bearer " + apiKey},
-				{"name": "Content-Type", "value": "application/json"},
 			},
-			"bodyType":      "raw",
-			"contentType":   "application/json",
-			"body":          body,
-			"parseResponse": true,
+			"contentType":              "custom",
+			"contentTypeValue":         "application/json",
+			"rawBodyContent":           body,
+			"parseResponse":            true,
+			"stopOnHttpError":          true,
+			"allowRedirects":           true,
+			"shareCookies":             false,
+			"requestCompressedContent": true,
 		},
-		Metadata: ModuleMetadata{Designer: Designer{X: 600, Y: 0}},
+		Metadata: ModuleMetadata{
+			Designer: Designer{X: 600, Y: 0},
+			Restore: map[string]any{
+				"parameters": map[string]any{
+					"authenticationType": map[string]any{"label": "No authentication"},
+					"tlsType":            map[string]any{"label": "Empty"},
+					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+				},
+				"expect": map[string]any{
+					"method":                   map[string]any{"label": "POST"},
+					"headers":                  map[string]any{"mode": "chose"},
+					"contentType":              map[string]any{"label": "Custom"},
+					"parseResponse":            map[string]any{"mode": "chose"},
+					"stopOnHttpError":          map[string]any{"mode": "chose"},
+					"allowRedirects":           map[string]any{"mode": "chose"},
+					"shareCookies":             map[string]any{"mode": "chose"},
+					"requestCompressedContent": map[string]any{"mode": "chose"},
+					"paginationType":           map[string]any{"label": "Empty"},
+				},
+			},
+		},
 	}
 }
 
-func telegramModule(chatID string) Module {
-	// Module 3 (LLM) returns choices[1].message.content (1-indexed).
+func telegramModule(chatID string, connectionID int) Module {
+	// Module 3 (LLM/Ollama) returns message.content.
 	const text = "{{2.data.results[1].title}}" +
-		"\n\n{{3.data.choices[1].message.content}}" +
-		"\n\nДжерело: {{1.link}}"
+		"\n\n{{3.data.message.content}}" +
+		"\n\nДжерело: {{2.data.results[1].url}}"
 
-	return Module{
+	m := Module{
 		ID:      4,
-		Module:  "telegram:ActionSendMessage",
+		Module:  "telegram:SendReplyMessage",
 		Version: 1,
 		Mapper: map[string]any{
-			"chatId": chatID,
-			"text":   text,
+			"chatId":                  chatID,
+			"text":                    text,
+			"messageThreadId":         "",
+			"parseMode":               "",
+			"replyToMessageId":        "",
+			"replyMarkupAssembleType": "reply_markup_enter",
+			"replyMarkup":             "",
 		},
-		Metadata: ModuleMetadata{Designer: Designer{X: 900, Y: 0}},
+		Metadata: ModuleMetadata{
+			Designer: Designer{X: 900, Y: 0},
+			Restore: map[string]any{
+				"parameters": map[string]any{
+					"__IMTCONN__": map[string]any{
+						"label": "My Telegram Bot connection",
+						"data": map[string]any{
+							"scoped":     "true",
+							"connection": "telegram",
+						},
+					},
+				},
+				"expect": map[string]any{
+					"parseMode":               map[string]any{"label": "Empty"},
+					"disableNotification":     map[string]any{"mode": "chose"},
+					"replyMarkupAssembleType": map[string]any{"label": "Enter the Reply Markup"},
+				},
+			},
+		},
 	}
+	if connectionID != 0 {
+		m.Parameters = map[string]any{"__IMTCONN__": connectionID}
+	}
+	return m
 }
 
 // mustJSON marshals v to a JSON string. Panics on error (only called with

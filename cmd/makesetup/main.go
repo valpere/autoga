@@ -1,71 +1,112 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/val/autoga/internal/makecom"
 )
 
+type feed struct {
+	name string
+	url  string
+}
+
 type config struct {
-	apiToken       string
-	zone           string
-	teamID         int
-	folderID       int
-	intervalSec    int
-	scenarioName   string
-	rssFeedURL     string
-	scraperURL     string
-	scraperAPIKey  string
-	llmAPIURL      string
-	llmAPIKey      string
-	llmModel       string
-	telegramChatID string
-	activate       bool
+	apiToken      string
+	zone          string
+	teamID        int
+	folderID      int
+	intervalSec   int
+	scenarioName  string
+	rssFeedsFile  string
+	scraperURL    string
+	scraperAPIKey string
+	llmAPIURL     string
+	llmAPIKey     string
+	llmModel      string
+	telegramChatID       string
+	telegramConnectionID int
 }
 
 func main() {
 	cfg := loadConfig()
 
-	client := makecom.NewClient(cfg.zone, cfg.apiToken)
-
-	bp := makecom.BuildBlueprint(makecom.ScenarioConfig{
-		Name:           cfg.scenarioName,
-		RSSFeedURL:     cfg.rssFeedURL,
-		ScraperURL:     cfg.scraperURL,
-		ScraperAPIKey:  cfg.scraperAPIKey,
-		LLMAPIUrl:      cfg.llmAPIURL,
-		LLMAPIKey:      cfg.llmAPIKey,
-		LLMModel:       cfg.llmModel,
-		TelegramChatID: cfg.telegramChatID,
-	})
-
-	sched := makecom.Scheduling{
-		Type:     "indefinitely",
-		Interval: cfg.intervalSec,
-	}
-
-	log.Printf("creating scenario %q on team %d (zone: %s)...", cfg.scenarioName, cfg.teamID, cfg.zone)
-
-	scenario, err := client.CreateScenario(cfg.teamID, bp, sched, cfg.folderID)
+	feeds, err := readFeeds(cfg.rssFeedsFile)
 	if err != nil {
-		log.Fatalf("create scenario: %v", err)
+		log.Fatalf("read feeds: %v", err)
+	}
+	if len(feeds) == 0 {
+		log.Fatalf("%s is empty", cfg.rssFeedsFile)
 	}
 
-	fmt.Printf("scenario created: id=%d name=%q\n", scenario.ID, scenario.Name)
-	fmt.Printf("edit: https://%s.make.com/scenario/%d/edit\n", cfg.zone, scenario.ID)
+	client := makecom.NewClient(cfg.zone, cfg.apiToken)
+	sched := makecom.Scheduling{Type: "indefinitely", Interval: cfg.intervalSec}
 
-	if cfg.activate {
-		if err := client.ActivateScenario(scenario.ID); err != nil {
-			log.Fatalf("activate scenario: %v", err)
+	for _, f := range feeds {
+		name := cfg.scenarioName + ": " + f.name
+
+		bp := makecom.BuildBlueprint(makecom.ScenarioConfig{
+			Name:                 name,
+			Zone:                 cfg.zone,
+			RSSFeedURL:           f.url,
+			ScraperURL:           cfg.scraperURL,
+			ScraperAPIKey:        cfg.scraperAPIKey,
+			LLMAPIUrl:            cfg.llmAPIURL,
+			LLMAPIKey:            cfg.llmAPIKey,
+			LLMModel:             cfg.llmModel,
+			TelegramChatID:       cfg.telegramChatID,
+			TelegramConnectionID: cfg.telegramConnectionID,
+		})
+
+		log.Printf("creating scenario %q...", name)
+
+		scenario, err := client.CreateScenario(cfg.teamID, bp, sched, cfg.folderID)
+		if err != nil {
+			log.Printf("ERROR %q: %v", name, err)
+			continue
 		}
-		fmt.Println("scenario activated")
-	} else {
-		fmt.Println("tip: set ACTIVATE=true to activate the scenario automatically")
-		fmt.Println("note: set Telegram connection in Make.com UI before activating")
+
+		fmt.Printf("created: id=%d name=%q\n", scenario.ID, scenario.Name)
+		fmt.Printf("  edit: https://%s.make.com/scenario/%d/edit\n", cfg.zone, scenario.ID)
 	}
+
+	fmt.Println("\nnote: activate scenarios manually in Make.com UI")
+}
+
+func readFeeds(path string) ([]feed, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	r.Comment = '#'
+	r.TrimLeadingSpace = true
+
+	records, err := r.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	var feeds []feed
+	for i, row := range records {
+		if len(row) < 2 {
+			return nil, fmt.Errorf("line %d: expected 2 columns (name, url), got %d", i+1, len(row))
+		}
+		name := strings.TrimSpace(row[0])
+		url := strings.TrimSpace(row[1])
+		if name == "" || url == "" {
+			continue
+		}
+		feeds = append(feeds, feed{name: name, url: url})
+	}
+	return feeds, nil
 }
 
 func loadConfig() config {
@@ -76,19 +117,19 @@ func loadConfig() config {
 		folderID:       getInt("MAKE_FOLDER_ID", 0),
 		intervalSec:    getInt("MAKE_INTERVAL_SEC", 900),
 		scenarioName:   getEnv("SCENARIO_NAME", "AutoGA Digest"),
-		rssFeedURL:     requireEnv("RSS_FEED_URL"),
+		rssFeedsFile:   getEnv("RSS_FEEDS", ".rss_feeds.csv"),
 		scraperURL:     requireEnv("AUTOGA_URL"),
 		scraperAPIKey:  getEnv("AUTOGA_API_KEY", ""),
 		llmAPIURL:      requireEnv("LLM_API_URL"),
 		llmAPIKey:      requireEnv("LLM_API_KEY"),
 		llmModel:       requireEnv("LLM_MODEL"),
-		telegramChatID: requireEnv("TELEGRAM_CHAT_ID"),
-		activate:       getEnv("ACTIVATE", "false") == "true",
+		telegramChatID:       getEnv("TELEGRAM_CHAT_ID", ""),
+		telegramConnectionID: getInt("TELEGRAM_CONNECTION_ID", 0),
 	}
 }
 
 func requireEnv(key string) string {
-	v := os.Getenv(key)
+	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
 		log.Fatalf("required env var %s is not set", key)
 	}
@@ -105,7 +146,7 @@ func requireInt(key string) int {
 }
 
 func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
 	return fallback

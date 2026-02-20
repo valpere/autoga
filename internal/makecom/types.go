@@ -36,9 +36,10 @@ type Module struct {
 	Metadata   ModuleMetadata `json:"metadata"`
 }
 
-// ModuleMetadata holds designer positioning for a module.
+// ModuleMetadata holds designer positioning and restore hints for a module.
 type ModuleMetadata struct {
-	Designer Designer `json:"designer"`
+	Designer Designer       `json:"designer"`
+	Restore  map[string]any `json:"restore,omitempty"`
 }
 
 // Designer holds the visual position of a module in the Make.com editor.
@@ -49,16 +50,30 @@ type Designer struct {
 
 // BlueprintMetadata holds scenario-level execution settings.
 type BlueprintMetadata struct {
+	Instant  bool            `json:"instant"`
 	Version  int             `json:"version"`
 	Scenario ScenarioOptions `json:"scenario"`
+	Designer DesignerMeta    `json:"designer"`
+	Zone     string          `json:"zone"`
+	Notes    []any           `json:"notes"`
+}
+
+// DesignerMeta holds visual editor metadata.
+type DesignerMeta struct {
+	Orphans []any `json:"orphans"`
 }
 
 // ScenarioOptions controls execution behaviour.
 type ScenarioOptions struct {
-	RoundTrips int  `json:"roundtrips"`
-	MaxErrors  int  `json:"maxErrors"`
-	AutoCommit bool `json:"autoCommit"`
-	Sequential bool `json:"sequential"`
+	RoundTrips            int  `json:"roundtrips"`
+	MaxErrors             int  `json:"maxErrors"`
+	AutoCommit            bool `json:"autoCommit"`
+	AutoCommitTriggerLast bool `json:"autoCommitTriggerLast"`
+	Sequential            bool `json:"sequential"`
+	Confidential          bool `json:"confidential"`
+	Dataloss              bool `json:"dataloss"`
+	DLQ                   bool `json:"dlq"`
+	FreshVariables        bool `json:"freshVariables"`
 }
 
 // Scheduling defines how often the scenario runs.

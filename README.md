@@ -79,7 +79,11 @@ The `cmd/makesetup` CLI deploys the Make.com scenario via API:
 ```bash
 cp .env.example .env
 # fill in .env
-source .env
+
+# add Google Alerts RSS feeds to .rss_feeds.csv:
+# name,url
+# Technology,https://www.google.com/alerts/feeds/...
+
 make deploy-scenario
 ```
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/val/autoga/internal/useragent"
@@ -24,9 +25,27 @@ func NewHTTPFetcher(timeout time.Duration) *HTTPFetcher {
 	}
 }
 
+// unwrapGoogleURL extracts the real destination from Google redirect URLs
+// (https://www.google.com/url?...&url=<target>&...). Returns the input unchanged
+// if it is not a Google redirect.
+func unwrapGoogleURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	if u.Host != "www.google.com" || u.Path != "/url" {
+		return raw
+	}
+	if target := u.Query().Get("url"); target != "" {
+		return target
+	}
+	return raw
+}
+
 // Fetch performs an HTTP GET and returns the body, capped at maxBodyBytes.
-func (f *HTTPFetcher) Fetch(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (f *HTTPFetcher) Fetch(ctx context.Context, rawURL string) ([]byte, error) {
+	target := unwrapGoogleURL(rawURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -36,12 +55,12 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) ([]byte, error) {
 
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", url, err)
+		return nil, fmt.Errorf("fetch %s: %w", target, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, target)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
