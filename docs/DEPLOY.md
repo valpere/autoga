@@ -208,12 +208,12 @@ GCLOUD_REGION=us-central1 make gcloud-deploy
 This runs two steps:
 
 ```bash
-# 1. Build image via Cloud Build using docker/Dockerfile
-gcloud builds submit --config cloudbuild.yaml .
+# 1. Build image via Cloud Build (uses docker/Dockerfile, config in docker/cloudbuild.yaml)
+gcloud builds submit --config docker/cloudbuild.yaml .
 
 # 2. Deploy the built image to Cloud Run
 gcloud run deploy autoga \
-  --image gcr.io/<PROJECT>/autoga \
+  --image gcr.io/<PROJECT_ID>/autoga \
   --platform managed \
   --region europe-central2 \
   --allow-unauthenticated \
@@ -224,6 +224,8 @@ gcloud run deploy autoga \
   --set-env-vars "READ_TIMEOUT=5s,WRITE_TIMEOUT=60s,FETCH_TIMEOUT=15s,MAX_CONCURRENCY=5,MAX_URLS_PER_REQUEST=10" \
   --update-secrets "API_KEY=autoga-api-key:latest"
 ```
+
+The built image is stored in Container Registry as `gcr.io/<PROJECT_ID>/autoga:latest`.
 
 After deploy, copy the **Service URL** into `AUTOGA_URL` in `.env`.
 
