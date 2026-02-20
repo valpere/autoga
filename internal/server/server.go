@@ -22,7 +22,7 @@ func New(cfg config.Config, sc *scraper.Scraper) *http.Server {
 	r.Use(httprate.LimitByIP(60, time.Minute))
 
 	r.Get("/health", healthHandler)
-	r.Post("/scrape", (&scrapeHandler{
+	r.With(apiKeyAuth(cfg.APIKey)).Post("/scrape", (&scrapeHandler{
 		scraper:           sc,
 		maxURLsPerRequest: cfg.MaxURLsPerRequest,
 	}).ServeHTTP)
