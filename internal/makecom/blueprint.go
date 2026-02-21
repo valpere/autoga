@@ -195,7 +195,7 @@ func scraperModule(scraperURL string, keychainID int) Module {
 		Filter: &ModuleFilter{
 			Name: "Not yet seen",
 			Conditions: [][]FilterCondition{{
-				{A: "{{2.data.result}}", B: "", O: "emptyish"},
+				{A: "{{2.data.result}}", B: "", O: "notexist"},
 			}},
 		},
 		Mapper: map[string]any{
@@ -273,6 +273,7 @@ func llmModule(apiURL string, keychainID int, model string) Module {
 			"allowRedirects":           true,
 			"shareCookies":             false,
 			"requestCompressedContent": true,
+			"timeout":                  "90",
 		},
 		Metadata: ModuleMetadata{
 			Designer: Designer{X: 900, Y: 0},

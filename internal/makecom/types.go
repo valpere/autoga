@@ -46,7 +46,7 @@ type ModuleFilter struct {
 // FilterCondition is a single predicate: a <op> b.
 type FilterCondition struct {
 	A string `json:"a"`
-	B string `json:"b"`
+	B string `json:"b,omitempty"`
 	O string `json:"o"`
 }
 

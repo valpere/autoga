@@ -37,11 +37,16 @@ func (e *ReadabilityExtractor) Extract(rawURL string, html []byte) (internal.Art
 		return internal.ArticleResult{URL: rawURL}, fmt.Errorf("readability: %w", err)
 	}
 
+	content := strings.Join(strings.Fields(article.TextContent), " ")
+	if content == "" {
+		content = article.Excerpt
+	}
+
 	return internal.ArticleResult{
 		URL:      rawURL,
 		Title:    sanitize(article.Title),
 		Byline:   sanitize(article.Byline),
-		Content:  sanitize(strings.Join(strings.Fields(article.TextContent), " ")),
+		Content:  sanitize(content),
 		Excerpt:  sanitize(article.Excerpt),
 		SiteName: sanitize(article.SiteName),
 	}, nil
