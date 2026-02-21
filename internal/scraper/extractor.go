@@ -37,11 +37,23 @@ func (e *ReadabilityExtractor) Extract(rawURL string, html []byte) (internal.Art
 		return internal.ArticleResult{URL: rawURL}, fmt.Errorf("readability: %w", err)
 	}
 
+	content := strings.Join(strings.Fields(article.TextContent), " ")
+	excerpt := article.Excerpt
+	// If readability returned text that doesn't contain the excerpt's opening,
+	// it likely extracted boilerplate (navigation, sidebars) instead of the
+	// article body. Fall back to excerpt in that case.
+	if content == "" || (excerpt != "" && !strings.Contains(
+		strings.ToLower(content),
+		strings.ToLower(excerpt[:min(40, len(excerpt))]),
+	)) {
+		content = excerpt
+	}
+
 	return internal.ArticleResult{
 		URL:      rawURL,
 		Title:    sanitize(article.Title),
 		Byline:   sanitize(article.Byline),
-		Content:  sanitize(strings.Join(strings.Fields(article.TextContent), " ")),
+		Content:  sanitize(content),
 		Excerpt:  sanitize(article.Excerpt),
 		SiteName: sanitize(article.SiteName),
 	}, nil

@@ -32,8 +32,22 @@ type Module struct {
 	Module     string         `json:"module"`
 	Version    int            `json:"version"`
 	Parameters map[string]any `json:"parameters,omitempty"`
+	Filter     *ModuleFilter  `json:"filter,omitempty"`
 	Mapper     map[string]any `json:"mapper"`
 	Metadata   ModuleMetadata `json:"metadata"`
+}
+
+// ModuleFilter defines a condition that must be true for the module to execute.
+type ModuleFilter struct {
+	Name       string              `json:"name"`
+	Conditions [][]FilterCondition `json:"conditions"`
+}
+
+// FilterCondition is a single predicate: a <op> b.
+type FilterCondition struct {
+	A string `json:"a"`
+	B string `json:"b,omitempty"`
+	O string `json:"o"`
 }
 
 // ModuleMetadata holds designer positioning and restore hints for a module.

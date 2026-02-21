@@ -1,0 +1,408 @@
+{
+    "name": "AutoGA Digest: Artificial Intelligence",
+    "flow": [
+        {
+            "id": 1,
+            "module": "rss:ActionReadArticles",
+            "version": 4,
+            "parameters": {
+                "include": []
+            },
+            "mapper": {
+                "url": "https://www.google.com/alerts/feeds/11970076245452971951/1279749225505632611",
+                "gzip": true,
+                "password": "",
+                "username": "",
+                "maxResults": "10",
+                "filterDateTo": "",
+                "filterDateFrom": ""
+            },
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 0,
+                    "name": "RSS Google Alerts: AI"
+                }
+            }
+        },
+        {
+            "id": 2,
+            "module": "http:MakeRequest",
+            "version": 4,
+            "parameters": {
+                "tlsType": "",
+                "proxyKeychain": "",
+                "apiKeyKeychain": 103922,
+                "authenticationType": "apiKey"
+            },
+            "mapper": {
+                "url": "https://chief-gelding-37119.upstash.io/get/{{md5(1.url)}}",
+                "method": "get",
+                "shareCookies": false,
+                "parseResponse": true,
+                "allowRedirects": true,
+                "stopOnHttpError": true,
+                "requestCompressedContent": false
+            },
+            "metadata": {
+                "designer": {
+                    "x": 300,
+                    "y": 0,
+                    "name": "Do we already have this?"
+                },
+                "restore": {
+                    "expect": {
+                        "method": {
+                            "label": "GET"
+                        },
+                        "headers": {
+                            "mode": "chose"
+                        },
+                        "shareCookies": {
+                            "mode": "chose"
+                        },
+                        "parseResponse": {
+                            "mode": "chose"
+                        },
+                        "allowRedirects": {
+                            "mode": "chose"
+                        },
+                        "paginationType": {
+                            "label": "Empty"
+                        },
+                        "stopOnHttpError": {
+                            "mode": "chose"
+                        },
+                        "requestCompressedContent": {
+                            "mode": "chose"
+                        }
+                    },
+                    "parameters": {
+                        "tlsType": {
+                            "label": "Empty"
+                        },
+                        "proxyKeychain": {
+                            "label": "Choose a key"
+                        },
+                        "apiKeyKeychain": {
+                            "label": "Upstash API Key"
+                        },
+                        "authenticationType": {
+                            "label": "API keyUse when the service requires an API key."
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 3,
+            "module": "http:MakeRequest",
+            "version": 4,
+            "parameters": {
+                "tlsType": "",
+                "proxyKeychain": "",
+                "apiKeyKeychain": 103904,
+                "authenticationType": "apiKey"
+            },
+            "filter": {
+                "name": "Not yet seen",
+                "conditions": [
+                    [
+                        {
+                            "a": "{{2.data.result}}",
+                            "o": "notexist"
+                        }
+                    ]
+                ]
+            },
+            "mapper": {
+                "url": "https://autoga-309851545749.europe-central2.run.app/scrape",
+                "method": "post",
+                "timeout": 90,
+                "contentType": "custom",
+                "shareCookies": false,
+                "parseResponse": true,
+                "allowRedirects": true,
+                "rawBodyContent": "{\"urls\":[\"{{1.url}}\"]}",
+                "stopOnHttpError": true,
+                "contentTypeValue": "application/json",
+                "requestCompressedContent": true
+            },
+            "metadata": {
+                "designer": {
+                    "x": 600,
+                    "y": 0,
+                    "name": "Get the text of the article"
+                },
+                "restore": {
+                    "expect": {
+                        "method": {
+                            "label": "POST"
+                        },
+                        "headers": {
+                            "mode": "chose"
+                        },
+                        "contentType": {
+                            "label": "Custom"
+                        },
+                        "shareCookies": {
+                            "mode": "chose"
+                        },
+                        "parseResponse": {
+                            "mode": "chose"
+                        },
+                        "allowRedirects": {
+                            "mode": "chose"
+                        },
+                        "paginationType": {
+                            "label": "Empty"
+                        },
+                        "stopOnHttpError": {
+                            "mode": "chose"
+                        },
+                        "requestCompressedContent": {
+                            "mode": "chose"
+                        }
+                    },
+                    "parameters": {
+                        "tlsType": {
+                            "label": "Empty"
+                        },
+                        "proxyKeychain": {
+                            "label": "Choose a key"
+                        },
+                        "apiKeyKeychain": {
+                            "label": "App API Key"
+                        },
+                        "authenticationType": {
+                            "label": "API keyUse when the service requires an API key."
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 4,
+            "module": "http:MakeRequest",
+            "version": 4,
+            "parameters": {
+                "tlsType": "",
+                "proxyKeychain": "",
+                "apiKeyKeychain": 103897,
+                "authenticationType": "apiKey"
+            },
+            "filter": {
+                "name": "Has content",
+                "conditions": [
+                    [
+                        {
+                            "a": "{{3.data.results[1].content}}",
+                            "o": "exist"
+                        }
+                    ]
+                ]
+            },
+            "mapper": {
+                "url": "https://ollama.com/api/chat",
+                "method": "post",
+                "timeout": "90",
+                "contentType": "custom",
+                "shareCookies": false,
+                "parseResponse": true,
+                "allowRedirects": true,
+                "rawBodyContent": "{\"messages\":[{\"content\":\"Напиши короткий дайджест цієї статті українською мовою (3-5 речень).\\n\\nЗаголовок: {{3.data.results[1].title}}\\n\\nТекст: {{3.data.results[1].content}}\",\"role\":\"user\"}],\"model\":\"glm-5\",\"stream\":false}",
+                "stopOnHttpError": true,
+                "contentTypeValue": "application/json",
+                "requestCompressedContent": true
+            },
+            "metadata": {
+                "designer": {
+                    "x": 900,
+                    "y": 0,
+                    "name": "Make a digest using AI"
+                },
+                "restore": {
+                    "expect": {
+                        "method": {
+                            "label": "POST"
+                        },
+                        "headers": {
+                            "mode": "chose"
+                        },
+                        "contentType": {
+                            "label": "Custom"
+                        },
+                        "shareCookies": {
+                            "mode": "chose"
+                        },
+                        "parseResponse": {
+                            "mode": "chose"
+                        },
+                        "allowRedirects": {
+                            "mode": "chose"
+                        },
+                        "paginationType": {
+                            "label": "Empty"
+                        },
+                        "stopOnHttpError": {
+                            "mode": "chose"
+                        },
+                        "requestCompressedContent": {
+                            "mode": "chose"
+                        }
+                    },
+                    "parameters": {
+                        "tlsType": {
+                            "label": "Empty"
+                        },
+                        "proxyKeychain": {
+                            "label": "Choose a key"
+                        },
+                        "apiKeyKeychain": {
+                            "label": "Ollama API Key"
+                        },
+                        "authenticationType": {
+                            "label": "API keyUse when the service requires an API key."
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 5,
+            "module": "telegram:SendReplyMessage",
+            "version": 1,
+            "parameters": {
+                "__IMTCONN__": 5375049
+            },
+            "mapper": {
+                "text": "{{3.data.results[1].title}}\n\n{{4.data.message.content}}\n\nДжерело: {{3.data.results[1].url}}",
+                "chatId": "-1003858094447",
+                "parseMode": "",
+                "replyMarkup": "",
+                "messageThreadId": "",
+                "replyToMessageId": "",
+                "replyMarkupAssembleType": "reply_markup_enter"
+            },
+            "metadata": {
+                "designer": {
+                    "x": 1200,
+                    "y": 0,
+                    "name": "Send the digest via Telegram Bot"
+                },
+                "restore": {
+                    "expect": {
+                        "parseMode": {
+                            "label": "Empty"
+                        },
+                        "disableNotification": {
+                            "mode": "chose"
+                        },
+                        "replyMarkupAssembleType": {
+                            "label": "Enter the Reply Markup"
+                        }
+                    },
+                    "parameters": {
+                        "__IMTCONN__": {
+                            "data": {
+                                "scoped": "true",
+                                "connection": "telegram"
+                            },
+                            "label": "My Telegram Bot connection"
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "id": 6,
+            "module": "http:MakeRequest",
+            "version": 4,
+            "parameters": {
+                "tlsType": "",
+                "proxyKeychain": "",
+                "apiKeyKeychain": 103922,
+                "authenticationType": "apiKey"
+            },
+            "mapper": {
+                "url": "https://chief-gelding-37119.upstash.io/set/{{md5(1.url)}}/1/ex/2592000",
+                "method": "get",
+                "shareCookies": false,
+                "parseResponse": false,
+                "allowRedirects": true,
+                "stopOnHttpError": false,
+                "requestCompressedContent": false
+            },
+            "metadata": {
+                "designer": {
+                    "x": 1500,
+                    "y": 0,
+                    "name": "Prevent duplicates"
+                },
+                "restore": {
+                    "expect": {
+                        "method": {
+                            "label": "GET"
+                        },
+                        "headers": {
+                            "mode": "chose"
+                        },
+                        "shareCookies": {
+                            "mode": "chose"
+                        },
+                        "parseResponse": {
+                            "mode": "chose"
+                        },
+                        "allowRedirects": {
+                            "mode": "chose"
+                        },
+                        "paginationType": {
+                            "label": "Empty"
+                        },
+                        "stopOnHttpError": {
+                            "mode": "chose"
+                        },
+                        "requestCompressedContent": {
+                            "mode": "chose"
+                        }
+                    },
+                    "parameters": {
+                        "tlsType": {
+                            "label": "Empty"
+                        },
+                        "proxyKeychain": {
+                            "label": "Choose a key"
+                        },
+                        "apiKeyKeychain": {
+                            "label": "Upstash API Key"
+                        },
+                        "authenticationType": {
+                            "label": "API keyUse when the service requires an API key."
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "metadata": {
+        "instant": false,
+        "version": 1,
+        "scenario": {
+            "roundtrips": 1,
+            "maxErrors": 3,
+            "autoCommit": true,
+            "autoCommitTriggerLast": true,
+            "sequential": false,
+            "slots": null,
+            "confidential": false,
+            "dataloss": false,
+            "dlq": false,
+            "freshVariables": false
+        },
+        "designer": {
+            "orphans": []
+        },
+        "zone": "eu1.make.com",
+        "notes": []
+    }
+}

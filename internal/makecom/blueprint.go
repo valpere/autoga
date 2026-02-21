@@ -1,6 +1,9 @@
 package makecom
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // ScenarioConfig holds all values needed to construct the scenario blueprint.
 type ScenarioConfig struct {
@@ -8,32 +11,40 @@ type ScenarioConfig struct {
 	Zone                 string
 	RSSFeedURL           string
 	ScraperURL           string
-	ScraperAPIKey        string
 	LLMAPIUrl            string
-	LLMAPIKey            string
 	LLMModel             string
 	TelegramChatID       string
 	TelegramConnectionID int
+	UpstashURL           string
+	UpstashTTLSec        int
+	// Make.com keychain IDs — set up once in Make.com UI (Connections).
+	// Auth is injected automatically at runtime; no API keys embedded in blueprint.
+	KeychainUpstash int // Upstash REST API key
+	KeychainScraper int // autoga API key
+	KeychainLLM     int // Ollama Cloud API key
 }
 
 // BuildBlueprint constructs the Make.com scenario blueprint for the
-// RSS → autoga scraper → LLM digest → Telegram flow.
+// RSS → dedup check → autoga scraper → LLM digest → Telegram → dedup record flow.
 //
-// Data flow between modules uses Make.com template syntax: {{moduleId.field}}.
-// Module IDs: 1=RSS, 2=scraper HTTP, 3=LLM HTTP, 4=Telegram.
+// Module IDs:
 //
-// NOTE: article content is interpolated directly into the LLM JSON body.
-// If articles contain characters that break JSON (quotes, backslashes),
-// the LLM request may malform. Add a JSON:CreateJSON module in Make.com UI
-// to handle encoding robustly if needed.
+//	1 = RSS feed
+//	2 = Upstash GET (dedup check): skip if url hash already exists
+//	3 = autoga /scrape
+//	4 = Ollama LLM
+//	5 = Telegram
+//	6 = Upstash SET (record url hash with TTL)
 func BuildBlueprint(cfg ScenarioConfig) Blueprint {
 	return Blueprint{
 		Name: cfg.Name,
 		Flow: []Module{
 			rssModule(cfg.RSSFeedURL),
-			scraperModule(cfg.ScraperURL, cfg.ScraperAPIKey),
-			llmModule(cfg.LLMAPIUrl, cfg.LLMAPIKey, cfg.LLMModel),
+			upstashCheckModule(cfg.UpstashURL, cfg.KeychainUpstash),
+			scraperModule(cfg.ScraperURL, cfg.KeychainScraper),
+			llmModule(cfg.LLMAPIUrl, cfg.KeychainLLM, cfg.LLMModel),
 			telegramModule(cfg.TelegramChatID, cfg.TelegramConnectionID),
+			upstashSetModule(cfg.UpstashURL, cfg.KeychainUpstash, cfg.UpstashTTLSec),
 		},
 		Metadata: BlueprintMetadata{
 			Instant: false,
@@ -73,25 +84,123 @@ func rssModule(feedURL string) Module {
 	}
 }
 
-func scraperModule(scraperURL, apiKey string) Module {
-	body := mustJSON(map[string]any{
-		"urls": []string{"{{1.url}}"},
-	})
+// upstashCheckModule calls GET /get/<md5(url)> on Upstash REST API.
+// Returns {"result": null} if key does not exist (not yet seen).
+// The downstream scraper module has a filter: process only when result is empty.
+func upstashCheckModule(upstashURL string, keychainID int) Module {
 	return Module{
 		ID:      2,
 		Module:  "http:MakeRequest",
 		Version: 4,
 		Parameters: map[string]any{
-			"authenticationType": "noAuth",
+			"authenticationType": "apiKey",
 			"tlsType":            "",
 			"proxyKeychain":      "",
+			"apiKeyKeychain":     keychainID,
 		},
 		Mapper: map[string]any{
-			"url":    scraperURL + "/scrape",
-			"method": "post",
-			"headers": []map[string]string{
-				{"name": "Authorization", "value": "Bearer " + apiKey},
+			"url":                      upstashURL + "/get/{{md5(1.url)}}",
+			"method":                   "get",
+			"parseResponse":            true,
+			"stopOnHttpError":          true,
+			"allowRedirects":           true,
+			"shareCookies":             false,
+			"requestCompressedContent": false,
+		},
+		Metadata: ModuleMetadata{
+			Designer: Designer{X: 300, Y: 0},
+			Restore: map[string]any{
+				"parameters": map[string]any{
+					"authenticationType": map[string]any{"label": "API keyUse when the service requires an API key."},
+					"tlsType":            map[string]any{"label": "Empty"},
+					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+					"apiKeyKeychain":     map[string]any{"label": "Upstash API Key"},
+				},
+				"expect": map[string]any{
+					"method":                   map[string]any{"label": "GET"},
+					"headers":                  map[string]any{"mode": "chose"},
+					"parseResponse":            map[string]any{"mode": "chose"},
+					"stopOnHttpError":          map[string]any{"mode": "chose"},
+					"allowRedirects":           map[string]any{"mode": "chose"},
+					"shareCookies":             map[string]any{"mode": "chose"},
+					"requestCompressedContent": map[string]any{"mode": "chose"},
+					"paginationType":           map[string]any{"label": "Empty"},
+				},
 			},
+		},
+	}
+}
+
+// upstashSetModule records the url hash in Upstash with the configured TTL.
+// Uses GET /set/<key>/1/ex/<ttl> — Upstash REST supports commands as URL path.
+func upstashSetModule(upstashURL string, keychainID int, ttlSec int) Module {
+	return Module{
+		ID:      6,
+		Module:  "http:MakeRequest",
+		Version: 4,
+		Parameters: map[string]any{
+			"authenticationType": "apiKey",
+			"tlsType":            "",
+			"proxyKeychain":      "",
+			"apiKeyKeychain":     keychainID,
+		},
+		Mapper: map[string]any{
+			"url":                      fmt.Sprintf("%s/set/{{md5(1.url)}}/1/ex/%d", upstashURL, ttlSec),
+			"method":                   "get",
+			"parseResponse":            false,
+			"stopOnHttpError":          false,
+			"allowRedirects":           true,
+			"shareCookies":             false,
+			"requestCompressedContent": false,
+		},
+		Metadata: ModuleMetadata{
+			Designer: Designer{X: 1500, Y: 0},
+			Restore: map[string]any{
+				"parameters": map[string]any{
+					"authenticationType": map[string]any{"label": "API keyUse when the service requires an API key."},
+					"tlsType":            map[string]any{"label": "Empty"},
+					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+					"apiKeyKeychain":     map[string]any{"label": "Upstash API Key"},
+				},
+				"expect": map[string]any{
+					"method":                   map[string]any{"label": "GET"},
+					"headers":                  map[string]any{"mode": "chose"},
+					"parseResponse":            map[string]any{"mode": "chose"},
+					"stopOnHttpError":          map[string]any{"mode": "chose"},
+					"allowRedirects":           map[string]any{"mode": "chose"},
+					"shareCookies":             map[string]any{"mode": "chose"},
+					"requestCompressedContent": map[string]any{"mode": "chose"},
+					"paginationType":           map[string]any{"label": "Empty"},
+				},
+			},
+		},
+	}
+}
+
+func scraperModule(scraperURL string, keychainID int) Module {
+	body := mustJSON(map[string]any{
+		"urls": []string{"{{1.url}}"},
+	})
+	return Module{
+		ID:      3,
+		Module:  "http:MakeRequest",
+		Version: 4,
+		Parameters: map[string]any{
+			"authenticationType": "apiKey",
+			"tlsType":            "",
+			"proxyKeychain":      "",
+			"apiKeyKeychain":     keychainID,
+		},
+		// Filter: only process if Upstash returned null (url not seen before).
+		Filter: &ModuleFilter{
+			Name: "Not yet seen",
+			Conditions: [][]FilterCondition{{
+				{A: "{{2.data.result}}", B: "", O: "notexist"},
+			}},
+		},
+		Mapper: map[string]any{
+			"url":                      scraperURL + "/scrape",
+			"method":                   "post",
 			"contentType":              "custom",
 			"contentTypeValue":         "application/json",
 			"rawBodyContent":           body,
@@ -103,12 +212,13 @@ func scraperModule(scraperURL, apiKey string) Module {
 			"timeout":                  90,
 		},
 		Metadata: ModuleMetadata{
-			Designer: Designer{X: 300, Y: 0},
+			Designer: Designer{X: 600, Y: 0},
 			Restore: map[string]any{
 				"parameters": map[string]any{
-					"authenticationType": map[string]any{"label": "No authentication"},
+					"authenticationType": map[string]any{"label": "API keyUse when the service requires an API key."},
 					"tlsType":            map[string]any{"label": "Empty"},
 					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+					"apiKeyKeychain":     map[string]any{"label": "App API Key"},
 				},
 				"expect": map[string]any{
 					"method":                   map[string]any{"label": "POST"},
@@ -126,13 +236,13 @@ func scraperModule(scraperURL, apiKey string) Module {
 	}
 }
 
-func llmModule(apiURL, apiKey, model string) Module {
-	// Module 2 (scraper) returns results[1] (1-indexed per Make.com convention).
+func llmModule(apiURL string, keychainID int, model string) Module {
+	// Module 3 (scraper) returns results[1] (1-indexed per Make.com convention).
 	// Article content is normalized (no newlines) by the scraper, so embedding
 	// it in a JSON string via rawBodyContent is safe.
 	const prompt = "Напиши короткий дайджест цієї статті українською мовою (3-5 речень)." +
-		"\n\nЗаголовок: {{2.data.results[1].title}}" +
-		"\n\nТекст: {{2.data.results[1].content}}"
+		"\n\nЗаголовок: {{3.data.results[1].title}}" +
+		"\n\nТекст: {{3.data.results[1].content}}"
 
 	body := mustJSON(map[string]any{
 		"model":  model,
@@ -143,20 +253,25 @@ func llmModule(apiURL, apiKey, model string) Module {
 	})
 
 	return Module{
-		ID:      3,
+		ID:      4,
 		Module:  "http:MakeRequest",
 		Version: 4,
 		Parameters: map[string]any{
-			"authenticationType": "noAuth",
+			"authenticationType": "apiKey",
 			"tlsType":            "",
 			"proxyKeychain":      "",
+			"apiKeyKeychain":     keychainID,
+		},
+		// Filter: skip LLM call when scraper returned no content (paywall, JS-only pages).
+		Filter: &ModuleFilter{
+			Name: "Has content",
+			Conditions: [][]FilterCondition{{
+				{A: "{{3.data.results[1].content}}", O: "exist"},
+			}},
 		},
 		Mapper: map[string]any{
-			"url":    apiURL,
-			"method": "post",
-			"headers": []map[string]string{
-				{"name": "Authorization", "value": "Bearer " + apiKey},
-			},
+			"url":                      apiURL,
+			"method":                   "post",
 			"contentType":              "custom",
 			"contentTypeValue":         "application/json",
 			"rawBodyContent":           body,
@@ -165,14 +280,16 @@ func llmModule(apiURL, apiKey, model string) Module {
 			"allowRedirects":           true,
 			"shareCookies":             false,
 			"requestCompressedContent": true,
+			"timeout":                  "90",
 		},
 		Metadata: ModuleMetadata{
-			Designer: Designer{X: 600, Y: 0},
+			Designer: Designer{X: 900, Y: 0},
 			Restore: map[string]any{
 				"parameters": map[string]any{
-					"authenticationType": map[string]any{"label": "No authentication"},
+					"authenticationType": map[string]any{"label": "API keyUse when the service requires an API key."},
 					"tlsType":            map[string]any{"label": "Empty"},
 					"proxyKeychain":      map[string]any{"label": "Choose a key"},
+					"apiKeyKeychain":     map[string]any{"label": "Ollama API Key"},
 				},
 				"expect": map[string]any{
 					"method":                   map[string]any{"label": "POST"},
@@ -191,13 +308,13 @@ func llmModule(apiURL, apiKey, model string) Module {
 }
 
 func telegramModule(chatID string, connectionID int) Module {
-	// Module 3 (LLM/Ollama) returns message.content.
-	const text = "{{2.data.results[1].title}}" +
-		"\n\n{{3.data.message.content}}" +
-		"\n\nДжерело: {{2.data.results[1].url}}"
+	// Module 3 (scraper) and module 4 (LLM/Ollama).
+	const text = "{{3.data.results[1].title}}" +
+		"\n\n{{4.data.message.content}}" +
+		"\n\nДжерело: {{3.data.results[1].url}}"
 
 	m := Module{
-		ID:      4,
+		ID:      5,
 		Module:  "telegram:SendReplyMessage",
 		Version: 1,
 		Mapper: map[string]any{
@@ -210,7 +327,7 @@ func telegramModule(chatID string, connectionID int) Module {
 			"replyMarkup":             "",
 		},
 		Metadata: ModuleMetadata{
-			Designer: Designer{X: 900, Y: 0},
+			Designer: Designer{X: 1200, Y: 0},
 			Restore: map[string]any{
 				"parameters": map[string]any{
 					"__IMTCONN__": map[string]any{
