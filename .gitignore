@@ -30,7 +30,9 @@ go.work.sum
 
 # compiled binaries
 bin/
+makesetup
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+

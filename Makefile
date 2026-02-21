@@ -2,6 +2,7 @@
 .PHONY: build run health scrape docker-build docker-up docker-down tidy deploy-scenario gcloud-deploy help
 
 BIN           := bin/autoga
+BIN_MAKESETUP := bin/makesetup
 PORT          ?= 8080
 GCLOUD_REGION ?= europe-central2
 
@@ -36,6 +37,7 @@ help:
 build:
 	@mkdir -p bin
 	go build -o $(BIN) ./cmd/autoga
+	go build -o $(BIN_MAKESETUP) ./cmd/makesetup
 
 run: build
 	PORT=$(PORT) ./$(BIN)
@@ -60,8 +62,8 @@ docker-up:
 docker-down:
 	docker compose -f docker/docker-compose.yml down
 
-deploy-scenario:
-	go run ./cmd/makesetup
+deploy-scenario: build
+	$(BIN_MAKESETUP)
 
 gcloud-deploy:
 	gcloud builds submit --config docker/cloudbuild.yaml .
