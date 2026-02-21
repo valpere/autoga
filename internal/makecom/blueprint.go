@@ -262,6 +262,13 @@ func llmModule(apiURL string, keychainID int, model string) Module {
 			"proxyKeychain":      "",
 			"apiKeyKeychain":     keychainID,
 		},
+		// Filter: skip LLM call when scraper returned no content (paywall, JS-only pages).
+		Filter: &ModuleFilter{
+			Name: "Has content",
+			Conditions: [][]FilterCondition{{
+				{A: "{{3.data.results[1].content}}", O: "exist"},
+			}},
+		},
 		Mapper: map[string]any{
 			"url":                      apiURL,
 			"method":                   "post",

@@ -20,7 +20,8 @@
             "metadata": {
                 "designer": {
                     "x": 0,
-                    "y": 0
+                    "y": 0,
+                    "name": "RSS Google Alerts: AI"
                 }
             }
         },
@@ -46,7 +47,8 @@
             "metadata": {
                 "designer": {
                     "x": 300,
-                    "y": 0
+                    "y": 0,
+                    "name": "Do we already have this?"
                 },
                 "restore": {
                     "expect": {
@@ -129,7 +131,8 @@
             "metadata": {
                 "designer": {
                     "x": 600,
-                    "y": 0
+                    "y": 0,
+                    "name": "Get the text of the article"
                 },
                 "restore": {
                     "expect": {
@@ -188,6 +191,17 @@
                 "apiKeyKeychain": 103897,
                 "authenticationType": "apiKey"
             },
+            "filter": {
+                "name": "Has content",
+                "conditions": [
+                    [
+                        {
+                            "a": "{{3.data.results[1].content}}",
+                            "o": "exist"
+                        }
+                    ]
+                ]
+            },
             "mapper": {
                 "url": "https://ollama.com/api/chat",
                 "method": "post",
@@ -204,19 +218,19 @@
             "metadata": {
                 "designer": {
                     "x": 900,
-                    "y": 0
+                    "y": 0,
+                    "name": "Make a digest using AI"
                 },
                 "restore": {
                     "expect": {
                         "method": {
-                            "mode": "chose",
                             "label": "POST"
                         },
                         "headers": {
                             "mode": "chose"
                         },
                         "contentType": {
-                            "label": "CustomEnter data using a custom content type, such as text/plain."
+                            "label": "Custom"
                         },
                         "shareCookies": {
                             "mode": "chose"
@@ -229,9 +243,6 @@
                         },
                         "paginationType": {
                             "label": "Empty"
-                        },
-                        "queryParameters": {
-                            "mode": "chose"
                         },
                         "stopOnHttpError": {
                             "mode": "chose"
@@ -254,249 +265,7 @@
                             "label": "API keyUse when the service requires an API key."
                         }
                     }
-                },
-                "parameters": [
-                    {
-                        "name": "authenticationType",
-                        "type": "select",
-                        "label": "Authentication type",
-                        "required": true,
-                        "validate": {
-                            "enum": [
-                                "noAuth",
-                                "apiKey",
-                                "basicAuth",
-                                "oAuth"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "tlsType",
-                        "type": "select",
-                        "label": "Transport layer security (TLS)",
-                        "validate": {
-                            "enum": [
-                                "mTls",
-                                "tls"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "proxyKeychain",
-                        "type": "keychain:proxy",
-                        "label": "Proxy"
-                    },
-                    {
-                        "name": "apiKeyKeychain",
-                        "type": "keychain:apikeyauth",
-                        "label": "Credentials",
-                        "required": true
-                    }
-                ],
-                "expect": [
-                    {
-                        "name": "url",
-                        "type": "url",
-                        "label": "URL",
-                        "required": true
-                    },
-                    {
-                        "name": "method",
-                        "type": "select",
-                        "label": "Method",
-                        "required": true,
-                        "validate": {
-                            "enum": [
-                                "get",
-                                "head",
-                                "post",
-                                "put",
-                                "patch",
-                                "delete",
-                                "options"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "headers",
-                        "spec": {
-                            "name": "value",
-                            "spec": [
-                                {
-                                    "name": "name",
-                                    "type": "text",
-                                    "label": "Name",
-                                    "required": true,
-                                    "validate": {
-                                        "pattern": "^[-!#$%&'*+.^_`|~0-9A-Za-z]+$"
-                                    }
-                                },
-                                {
-                                    "name": "value",
-                                    "type": "text",
-                                    "label": "Value"
-                                }
-                            ],
-                            "type": "collection",
-                            "label": "Header"
-                        },
-                        "type": "array",
-                        "label": "Headers"
-                    },
-                    {
-                        "name": "queryParameters",
-                        "spec": {
-                            "name": "value",
-                            "spec": [
-                                {
-                                    "name": "name",
-                                    "type": "text",
-                                    "label": "Name",
-                                    "required": true
-                                },
-                                {
-                                    "name": "value",
-                                    "type": "text",
-                                    "label": "Value"
-                                }
-                            ],
-                            "type": "collection",
-                            "label": "Parameter"
-                        },
-                        "type": "array",
-                        "label": "Query parameters"
-                    },
-                    {
-                        "name": "contentType",
-                        "type": "select",
-                        "label": "Body content type",
-                        "validate": {
-                            "enum": [
-                                "json",
-                                "multipart",
-                                "urlEncoded",
-                                "custom"
-                            ]
-                        }
-                    },
-                    {
-                        "name": "parseResponse",
-                        "type": "boolean",
-                        "label": "Parse response",
-                        "required": true
-                    },
-                    {
-                        "name": "stopOnHttpError",
-                        "type": "boolean",
-                        "label": "Return error if HTTP request fails",
-                        "required": true
-                    },
-                    {
-                        "name": "timeout",
-                        "type": "uinteger",
-                        "label": "Timeout",
-                        "validate": {
-                            "max": 300,
-                            "min": 1
-                        }
-                    },
-                    {
-                        "name": "allowRedirects",
-                        "type": "boolean",
-                        "label": "Allow redirects",
-                        "required": true
-                    },
-                    {
-                        "name": "shareCookies",
-                        "type": "boolean",
-                        "label": "Share cookies with other HTTP modules",
-                        "required": true
-                    },
-                    {
-                        "name": "requestCompressedContent",
-                        "type": "boolean",
-                        "label": "Request compressed content",
-                        "required": true
-                    },
-                    {
-                        "name": "contentTypeValue",
-                        "type": "text",
-                        "label": "Content type value",
-                        "required": true
-                    },
-                    {
-                        "name": "rawBodyContent",
-                        "type": "buffer",
-                        "label": "Body content",
-                        "required": true
-                    },
-                    {
-                        "name": "paginationType",
-                        "type": "select",
-                        "label": "Pagination type",
-                        "validate": {
-                            "enum": [
-                                "offsetBased",
-                                "pageBased",
-                                "urlBased",
-                                "tokenBased"
-                            ]
-                        }
-                    }
-                ],
-                "interface": [
-                    {
-                        "name": "data",
-                        "type": "any",
-                        "label": "Data"
-                    },
-                    {
-                        "name": "statusCode",
-                        "type": "number",
-                        "label": "Status Code"
-                    },
-                    {
-                        "name": "headers",
-                        "spec": [
-                            {
-                                "name": "content-length",
-                                "type": "text",
-                                "label": "Content-Length"
-                            },
-                            {
-                                "name": "content-encoding",
-                                "type": "text",
-                                "label": "Content-Encoding"
-                            },
-                            {
-                                "name": "content-type",
-                                "type": "text",
-                                "label": "Content-Type"
-                            },
-                            {
-                                "name": "server",
-                                "type": "text",
-                                "label": "Server"
-                            },
-                            {
-                                "name": "cache-control",
-                                "type": "text",
-                                "label": "Cache-Control"
-                            },
-                            {
-                                "name": "set-cookie",
-                                "spec": {
-                                    "type": "text"
-                                },
-                                "type": "array",
-                                "label": "Set-Cookie"
-                            }
-                        ],
-                        "type": "collection",
-                        "label": "Headers"
-                    }
-                ],
-                "advanced": true
+                }
             }
         },
         {
@@ -518,7 +287,8 @@
             "metadata": {
                 "designer": {
                     "x": 1200,
-                    "y": 0
+                    "y": 0,
+                    "name": "Send the digest via Telegram Bot"
                 },
                 "restore": {
                     "expect": {
@@ -566,7 +336,8 @@
             "metadata": {
                 "designer": {
                     "x": 1500,
-                    "y": 0
+                    "y": 0,
+                    "name": "Prevent duplicates"
                 },
                 "restore": {
                     "expect": {
