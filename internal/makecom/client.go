@@ -30,29 +30,25 @@ func (c *Client) CreateScenario(teamID int, bp Blueprint, sched Scheduling, fold
 	if err != nil {
 		return ScenarioMeta{}, fmt.Errorf("marshal blueprint: %w", err)
 	}
-
 	schedBytes, err := json.Marshal(sched)
 	if err != nil {
 		return ScenarioMeta{}, fmt.Errorf("marshal scheduling: %w", err)
 	}
-
 	payload := CreateScenarioRequest{
 		Blueprint:  string(bpBytes),
 		TeamID:     teamID,
 		Scheduling: string(schedBytes),
 		FolderID:   folderID,
 	}
-
 	var resp CreateScenarioResponse
-	if err := c.post("/scenarios", payload, &resp); err != nil {
+	if err := c.do(http.MethodPost, "/scenarios", payload, &resp); err != nil {
 		return ScenarioMeta{}, err
 	}
-
 	return resp.Scenario, nil
 }
 
 
-func (c *Client) post(path string, body, out any) error {
+func (c *Client) do(method, path string, body, out any) error {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -62,7 +58,7 @@ func (c *Client) post(path string, body, out any) error {
 		reqBody = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+path, reqBody)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}

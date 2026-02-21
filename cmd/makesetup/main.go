@@ -17,20 +17,23 @@ type feed struct {
 }
 
 type config struct {
-	apiToken      string
-	zone          string
-	teamID        int
-	folderID      int
-	intervalSec   int
-	scenarioName  string
-	rssFeedsFile  string
-	scraperURL    string
-	scraperAPIKey string
-	llmAPIURL     string
-	llmAPIKey     string
-	llmModel      string
+	apiToken             string
+	zone                 string
+	teamID               int
+	folderID             int
+	intervalSec          int
+	scenarioName         string
+	rssFeedsFile         string
+	scraperURL           string
+	llmAPIURL            string
+	llmModel             string
 	telegramChatID       string
 	telegramConnectionID int
+	upstashURL           string
+	upstashTTLSec        int
+	keychainUpstash      int
+	keychainScraper      int
+	keychainLLM          int
 }
 
 func main() {
@@ -55,12 +58,15 @@ func main() {
 			Zone:                 cfg.zone,
 			RSSFeedURL:           f.url,
 			ScraperURL:           cfg.scraperURL,
-			ScraperAPIKey:        cfg.scraperAPIKey,
 			LLMAPIUrl:            cfg.llmAPIURL,
-			LLMAPIKey:            cfg.llmAPIKey,
 			LLMModel:             cfg.llmModel,
 			TelegramChatID:       cfg.telegramChatID,
 			TelegramConnectionID: cfg.telegramConnectionID,
+			UpstashURL:           cfg.upstashURL,
+			UpstashTTLSec:        cfg.upstashTTLSec,
+			KeychainUpstash:      cfg.keychainUpstash,
+			KeychainScraper:      cfg.keychainScraper,
+			KeychainLLM:          cfg.keychainLLM,
 		})
 
 		log.Printf("creating scenario %q...", name)
@@ -70,7 +76,6 @@ func main() {
 			log.Printf("ERROR %q: %v", name, err)
 			continue
 		}
-
 		fmt.Printf("created: id=%d name=%q\n", scenario.ID, scenario.Name)
 		fmt.Printf("  edit: https://%s.make.com/scenario/%d/edit\n", cfg.zone, scenario.ID)
 	}
@@ -111,20 +116,23 @@ func readFeeds(path string) ([]feed, error) {
 
 func loadConfig() config {
 	return config{
-		apiToken:       requireEnv("MAKE_API_TOKEN"),
-		zone:           getEnv("MAKE_ZONE", "eu1"),
-		teamID:         requireInt("MAKE_TEAM_ID"),
-		folderID:       getInt("MAKE_FOLDER_ID", 0),
-		intervalSec:    getInt("MAKE_INTERVAL_SEC", 900),
-		scenarioName:   getEnv("SCENARIO_NAME", "AutoGA Digest"),
-		rssFeedsFile:   getEnv("RSS_FEEDS", ".rss_feeds.csv"),
-		scraperURL:     requireEnv("AUTOGA_URL"),
-		scraperAPIKey:  getEnv("AUTOGA_API_KEY", ""),
-		llmAPIURL:      requireEnv("LLM_API_URL"),
-		llmAPIKey:      requireEnv("LLM_API_KEY"),
-		llmModel:       requireEnv("LLM_MODEL"),
+		apiToken:             requireEnv("MAKE_API_TOKEN"),
+		zone:                 getEnv("MAKE_ZONE", "eu1"),
+		teamID:               requireInt("MAKE_TEAM_ID"),
+		folderID:             getInt("MAKE_FOLDER_ID", 0),
+		intervalSec:          getInt("MAKE_INTERVAL_SEC", 900),
+		scenarioName:         getEnv("SCENARIO_NAME", "AutoGA Digest"),
+		rssFeedsFile:         getEnv("RSS_FEEDS", ".rss_feeds.csv"),
+		scraperURL:           requireEnv("AUTOGA_URL"),
+		llmAPIURL:            requireEnv("LLM_API_URL"),
+		llmModel:             requireEnv("LLM_MODEL"),
 		telegramChatID:       getEnv("TELEGRAM_CHAT_ID", ""),
 		telegramConnectionID: getInt("TELEGRAM_CONNECTION_ID", 0),
+		upstashURL:           requireEnv("UPSTASH_REDIS_REST_URL"),
+		upstashTTLSec:        getInt("UPSTASH_TTL_SEC", 2592000), // 30 days
+		keychainUpstash:      requireInt("MAKE_KEYCHAIN_UPSTASH"),
+		keychainScraper:      requireInt("MAKE_KEYCHAIN_SCRAPER"),
+		keychainLLM:          requireInt("MAKE_KEYCHAIN_LLM"),
 	}
 }
 
